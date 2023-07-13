@@ -3,6 +3,7 @@
 #include <M5Core2.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
+#include <UniversalTelegramBot.h>
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 
@@ -15,20 +16,32 @@ const unsigned long timerDuration = 30000; // 30 seconds
 bool hasTimerExpired = false;
 bool isParkFree = true;
 String isReceivedFree1;
+String isReceivedFree2;
+String combined;
+
+const String telegramToken = "6334658767:AAFTMN6TJg1tskBv3DKKgHTWh50lSbLHp_Q";
+
 
 
 // MQTT Broker configuration
 const char* mqttServer = "cloud.tbz.ch";
 const int mqttPort = 1883;
 const char* mqttClientId = "";
-const char* mqttTopic = "Parkhaus/ParkPlatz-unten";
+const char* mqttTopic1 = "Parkhaus/ParkPlatz-unten";
+const char* mqttTopic2 = "Parkhaus/ParkPlatz-oben";
 
 // WiFi credentials
-const char * ssid = "Wlan@Krasniqi";
-const char * password = "Kras1818@Au8804";
+const char * ssid = "LERNKUBE";
+const char * password = "l3rnk4b3";
+
+String chatIdStr = "5187049756";
+
+char remainingTimeMessage[50];
+
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
+UniversalTelegramBot bot(telegramToken, wifiClient);
 
 void setupWiFi() {
   delay(10);
@@ -47,14 +60,29 @@ void setupWiFi() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 }
+void sendTelegramMessage(const char* message) {
+  if (bot.sendMessage(chatIdStr.c_str(), message, "Markdown")) {
+  Serial.println("Message sent successfully");
+} else {
+  Serial.println("Failed to send message");
+}
+}
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  if (strcmp(topic, mqttTopic) == 0) {
+  if (strcmp(topic, mqttTopic1) == 0) {
     char receivedData[length + 1];
     memcpy(receivedData, payload, length);
     receivedData[length] = '\0';
 
     isReceivedFree1 = receivedData;
+  
+  }
+   if (strcmp(topic, mqttTopic2) == 0) {
+    char receivedData[length + 1];
+    memcpy(receivedData, payload, length);
+    receivedData[length] = '\0';
+
+    isReceivedFree2 = receivedData;
   
   }
 }
@@ -64,7 +92,8 @@ void reconnectMQTT() {
     Serial.print("Attempting MQTT connection...");
     if (mqttClient.connect(mqttClientId)) {
       Serial.println("connected");
-      mqttClient.subscribe(mqttTopic);
+      mqttClient.subscribe(mqttTopic1);
+      mqttClient.subscribe(mqttTopic2);
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
@@ -117,8 +146,11 @@ void loop() {
         isTimerActive = false;
         isParkFree = false;
         hasTimerExpired = true;
+        sendTelegramMessage("Timer is done!");
       } else {
         unsigned long remainingTime = timerDuration - elapsedTime;
+
+       // mqttClient.publish("Parkhaus/ParkPlatz-unten/Ubere Zeit", rmT );
         isParkFree = false;
       }
     } else {
@@ -128,24 +160,41 @@ void loop() {
       
   }
   if (isParkFree){
-    mqttClient.publish(mqttTopic, "Frei");
+    mqttClient.publish(mqttTopic1, "Frei");
   }
   else{
-    mqttClient.publish(mqttTopic, "Besetzt");
+    mqttClient.publish(mqttTopic1, "Besetzt");
   }
 
+  
 
-  if (isReceivedFree1 == "Frei"){
+  if (isReceivedFree1 == "Frei"  && isReceivedFree2 == "Frei"){
     M5.Lcd.setTextColor(TFT_GREEN);
+    M5.Lcd.println("Parkplatz oben frei");
     M5.Lcd.println("Parkplatz unten frei");
-    callback;
+    
   }
-  else if (isReceivedFree1 == "Besetzt"){
+  else if (isReceivedFree1 == "Frei" && isReceivedFree2 == "Besetzt"){
+    M5.Lcd.setTextColor(TFT_RED);
+    M5.Lcd.println("Parkplatz oben Besetzt");
+    M5.Lcd.setTextColor(TFT_GREEN);
+    M5.Lcd.println("Parkplatz unten Frei");
+    
+  }
+  else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Frei"){
+    M5.Lcd.setTextColor(TFT_GREEN);
+    M5.Lcd.println("Parkplatz oben Frei");
     M5.Lcd.setTextColor(TFT_RED);
     M5.Lcd.println("Parkplatz unten Besetzt");
-    callback;
+    
   }
-
+  else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Besetzt"){
+    M5.Lcd.setTextColor(TFT_RED);
+    M5.Lcd.println("Parkplatz oben Besetzt");
+    M5.Lcd.println("Parkplatz unten Besetzt");
+    
+  }
+  callback;
   delay(200);
   }
 }
