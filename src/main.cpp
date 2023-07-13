@@ -3,7 +3,6 @@
 #include <M5Core2.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
-#include <UniversalTelegramBot.h>
 
 void mqtt_callback(char* topic, byte* payload, unsigned int length);
 
@@ -14,14 +13,11 @@ bool isTimerActive = false;
 unsigned long timerStartTime = 0;
 const unsigned long timerDuration = 30000; // 30 seconds
 bool hasTimerExpired = false;
+
 bool isParkFree = true;
 String isReceivedFree1;
 String isReceivedFree2;
 String combined;
-
-const String telegramToken = "6334658767:AAFTMN6TJg1tskBv3DKKgHTWh50lSbLHp_Q";
-
-
 
 // MQTT Broker configuration
 const char* mqttServer = "cloud.tbz.ch";
@@ -41,7 +37,6 @@ char remainingTimeMessage[50];
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
-UniversalTelegramBot bot(telegramToken, wifiClient);
 
 void setupWiFi() {
   delay(10);
@@ -59,13 +54,6 @@ void setupWiFi() {
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-}
-void sendTelegramMessage(const char* message) {
-  if (bot.sendMessage(chatIdStr.c_str(), message, "Markdown")) {
-  Serial.println("Message sent successfully");
-} else {
-  Serial.println("Failed to send message");
-}
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -107,7 +95,7 @@ void setup() {
   M5.begin();
   M5.Lcd.begin();
   M5.Lcd.setTextFont(4);
-  M5.Lcd.setTextSize(1);
+  M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(TFT_WHITE);
   Wire.begin();
 
@@ -146,7 +134,6 @@ void loop() {
         isTimerActive = false;
         isParkFree = false;
         hasTimerExpired = true;
-        sendTelegramMessage("Timer is done!");
       } else {
         unsigned long remainingTime = timerDuration - elapsedTime;
 
@@ -160,40 +147,51 @@ void loop() {
       
   }
   if (isParkFree){
-    mqttClient.publish(mqttTopic1, "Frei");
+    mqttClient.publish(mqttTopic2, "Frei");
   }
   else{
-    mqttClient.publish(mqttTopic1, "Besetzt");
+    mqttClient.publish(mqttTopic2, "Besetzt");
   }
 
+  if (isReceivedFree1 == "Frei" && isReceivedFree2 == "Frei") {
+    M5.Lcd.setTextColor(TFT_GREEN);
+    M5.Lcd.println("<-- 1");
   
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.println("---------------");
 
-  if (isReceivedFree1 == "Frei"  && isReceivedFree2 == "Frei"){
     M5.Lcd.setTextColor(TFT_GREEN);
-    M5.Lcd.println("Parkplatz oben frei");
-    M5.Lcd.println("Parkplatz unten frei");
-    
-  }
-  else if (isReceivedFree1 == "Frei" && isReceivedFree2 == "Besetzt"){
+    M5.Lcd.println("1 -->");
+  } else if (isReceivedFree1 == "Frei" && isReceivedFree2 == "Besetzt") {
     M5.Lcd.setTextColor(TFT_RED);
-    M5.Lcd.println("Parkplatz oben Besetzt");
+    M5.Lcd.println("<-- 0");
+  
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.println("---------------");
+
     M5.Lcd.setTextColor(TFT_GREEN);
-    M5.Lcd.println("Parkplatz unten Frei");
-    
-  }
-  else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Frei"){
+    M5.Lcd.println("1 -->");
+  } else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Frei") {
     M5.Lcd.setTextColor(TFT_GREEN);
-    M5.Lcd.println("Parkplatz oben Frei");
+    M5.Lcd.println("<-- 1");
+  
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.println("---------------");
+
     M5.Lcd.setTextColor(TFT_RED);
-    M5.Lcd.println("Parkplatz unten Besetzt");
-    
-  }
-  else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Besetzt"){
+    M5.Lcd.println("0 -->");
+  } else if (isReceivedFree1 == "Besetzt" && isReceivedFree2 == "Besetzt") {
     M5.Lcd.setTextColor(TFT_RED);
-    M5.Lcd.println("Parkplatz oben Besetzt");
-    M5.Lcd.println("Parkplatz unten Besetzt");
-    
+    M5.Lcd.println("<-- 0");
+  
+    M5.Lcd.setTextColor(TFT_WHITE);
+    M5.Lcd.println("---------------");
+
+    M5.Lcd.setTextColor(TFT_RED);
+    M5.Lcd.println("0 -->");
   }
+
+
   callback;
   delay(200);
   }
